@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>DaleQueVence!</title>
+<style>
+:root{--bg:#EAF3F6;--ink:#16252B;--teal:#0F4C5C;--mute:#5C7079;--red:#B3261E;--amb:#B26A00;--ok:#2E7D4F}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.5 "Trebuchet MS","Segoe UI",sans-serif}
+main{max-width:640px;margin:0 auto;padding:24px 16px 48px}
+h1{font-size:1.9rem;line-height:1.15;margin:0 0 6px;color:var(--teal)}
+.sub{margin:0 0 18px;color:var(--mute)}
+form{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:16px}
+form .full{grid-column:1/-1}
+input,select{width:100%;padding:12px 14px;font:inherit;border:2px solid var(--teal);border-radius:10px;background:#fff;color:var(--ink)}
+button{font:inherit;padding:12px 16px;border:0;border-radius:10px;background:var(--teal);color:#fff;cursor:pointer}
+input:focus,select:focus,button:focus-visible{outline:3px solid #F2C94C;outline-offset:2px}
+.sum{font-weight:bold;margin:0 0 10px}
+.filters{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:14px}
+.filters button{background:#fff;color:var(--teal);border:2px solid var(--teal);padding:4px 12px;border-radius:999px;font-size:.9rem}
+.filters button.on{background:var(--teal);color:#fff}
+.it{display:flex;align-items:center;gap:10px;background:#fff;border-radius:12px;padding:10px 12px;margin-bottom:8px;border-left:6px solid var(--ok)}
+.it.soon{border-left-color:var(--amb)}
+.it.late{border-left-color:var(--red)}
+.info{flex:1;min-width:0}
+.nm{font-weight:bold;overflow-wrap:anywhere}
+.meta{font-size:.85rem;color:var(--mute)}
+.st{font-weight:bold;font-size:.9rem;text-align:right;white-space:nowrap;color:var(--ok)}
+.soon .st{color:var(--amb)}
+.late .st{color:var(--red)}
+.x{background:none;color:var(--mute);padding:4px 10px;font-size:1.2rem}
+.empty{color:var(--mute);text-align:center;padding:24px 0}
+.note{font-size:.8rem;color:var(--mute);margin-top:20px}
+</style>
+</head>
+<body>
+<main> 
+<h1>Dale Que Vence!</h1>
+<p class="sub">Anotá qué vence y cuándo. Te muestro qué atender primero.</p>
+<form id="f">
+  <input id="nm" class="full" placeholder="Ej: Leche, DNI, Seguro del auto" required aria-label="Nombre">
+  <input id="dt" type="date" required aria-label="Fecha de vencimiento">
+  <select id="ct" aria-label="Categoría"></select>
+  <button class="full" type="submit">Agregar</button>
+</form>
+<p class="sum" id="sum"></p>
+<div class="filters" id="fl"></div>
+<div id="out"></div>
+<p class="note">Los datos se guardan solo en este navegador y este dispositivo. El aviso de "por vencer" es de 3 días para alimentos, 30 para documentos y 7 para el resto.</p>
+</main>
+<script>
+const K="vence.items",T={Alimentos:3,Documentos:30,Servicios:7,Otros:7},C=Object.keys(T);
+let items=[],cat="Todas";
+try{items=JSON.parse(localStorage.getItem(K)||"[]")}catch(e){}
+const save=()=>{try{localStorage.setItem(K,JSON.stringify(items))}catch(e){}};
+const $=id=>document.getElementById(id);
+const esc=s=>s.replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const days=s=>{const[y,m,d]=s.split("-").map(Number),t=new Date();t.setHours(0,0,0,0);return Math.round((new Date(y,m-1,d)-t)/864e5)};
+const fmt=s=>s.split("-").reverse().join("/");
+const label=n=>n<0?`Venció hace ${-n} ${-n==1?"día":"días"}`:n==0?"Vence hoy":n==1?"Vence mañana":`Faltan ${n} días`;
+$("ct").innerHTML=C.map(c=>`<option>${c}</option>`).join("");
+$("f").onsubmit=e=>{e.preventDefault();
+  items.push({id:Date.now()+Math.random(),n:$("nm").value.trim(),d:$("dt").value,c:$("ct").value});
+  $("nm").value="";save();render()};
+function del(id){items=items.filter(i=>i.id!==id);save();render()}
+function setCat(c){cat=c;render()}
+function render(){
+  $("fl").innerHTML=["Todas",...C].map(c=>`<button class="${c===cat?"on":""}" onclick="setCat('${c}')">${c}</button>`).join("");
+  const all=items.map(i=>({...i,k:days(i.d)})).sort((a,b)=>a.k-b.k);
+  const late=all.filter(i=>i.k<0).length,soon=all.filter(i=>i.k>=0&&i.k<=T[i.c]).length;
+  $("sum").textContent=all.length?`${late} vencido${late==1?"":"s"} · ${soon} por vencer`:"";
+  const list=all.filter(i=>cat==="Todas"||i.c===cat);
+  $("out").innerHTML=list.length?list.map(i=>{
+    const cls=i.k<0?"late":i.k<=T[i.c]?"soon":"";
+    return`<div class="it ${cls}"><div class="info"><div class="nm">${esc(i.n)}</div><div class="meta">${i.c} · ${fmt(i.d)}</div></div><div class="st">${label(i.k)}</div><button class="x" aria-label="Eliminar ${esc(i.n)}" onclick="del(${i.id})">×</button></div>`}).join("")
+  :'<p class="empty">No hay vencimientos anotados todavía.</p>';
+}
+render();
+</script>
+</body>
+</html>
